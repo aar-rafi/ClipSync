@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClipboardPreviewProps {
   userId: string;
@@ -9,6 +11,8 @@ interface ClipboardPreviewProps {
 export function ClipboardPreview({ userId }: ClipboardPreviewProps) {
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const { toast } = useToast();
+  const [hasPermission, setHasPermission] = useState(true);
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -41,6 +45,23 @@ export function ClipboardPreview({ userId }: ClipboardPreviewProps) {
     };
   }, [userId]);
 
+  // Request clipboard permission on mount
+  useEffect(() => {
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'clipboard-read' as PermissionName })
+        .then(result => {
+          setHasPermission(result.state === 'granted');
+          result.addEventListener('change', () => {
+            setHasPermission(result.state === 'granted');
+          });
+        })
+        .catch(() => {
+          // Fallback for browsers that don't support clipboard permission API
+          setHasPermission(true);
+        });
+    }
+  }, []);
+
   // Send preview updates when clipboard content changes
   const handlePreview = async () => {
     try {
@@ -52,14 +73,39 @@ export function ClipboardPreview({ userId }: ClipboardPreviewProps) {
         }));
       }
     } catch (error) {
-      console.error('Failed to read clipboard:', error);
+      // Only show the error toast if it's not a focus-related error
+      if (error instanceof Error && !error.message.includes('Document is not focused')) {
+        toast({
+          title: "Clipboard Error",
+          description: "Unable to access clipboard content. Please ensure you've granted permission.",
+          variant: "destructive",
+        });
+        setHasPermission(false);
+      }
     }
   };
 
   useEffect(() => {
-    const interval = setInterval(handlePreview, 1000);
-    return () => clearInterval(interval);
-  }, [ws]);
+    if (hasPermission) {
+      const interval = setInterval(handlePreview, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [ws, hasPermission]);
+
+  if (!hasPermission) {
+    return (
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <p className="text-sm">
+              Please grant clipboard access permission and ensure the window is focused to enable clipboard preview.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!previewContent) return null;
 
