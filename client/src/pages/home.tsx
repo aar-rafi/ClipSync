@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HistoryList } from "@/components/history-list";
 import { SyncStatus } from "@/components/sync-status";
+import { ClipboardPreview } from "@/components/clipboard-preview";
 import { authenticateWithGoogle } from "@/lib/google-drive";
 import { readFromClipboard, saveClipboardEntry } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -64,7 +65,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // Initialize Google API client
     window.gapi.load("client", async () => {
       try {
         await window.gapi.client.init({
@@ -101,7 +101,10 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           {userId ? (
-            <HistoryList entries={entries} />
+            <>
+              <ClipboardPreview userId={userId} />
+              <HistoryList entries={entries} />
+            </>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               Please login to start syncing your clipboard
