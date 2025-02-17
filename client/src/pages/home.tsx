@@ -37,24 +37,39 @@ export default function Home() {
   }, [sessionUser]);
 
   const { data: entries = [], refetch: refetchEntries } = useQuery<ClipboardEntry[]>({
-    queryKey: ["/api/clipboard", userId],
+    queryKey: [`/api/clipboard/${userId}`],
     enabled: !!userId,
   });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (!userId) return;
+      if (!userId) throw new Error("No user ID");
       setSyncing(true);
       try {
         const clipboardContent = await readFromClipboard();
         if (clipboardContent) {
           await saveClipboardEntry(clipboardContent, userId);
           await refetchEntries();
+          // Update last synced timestamp
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/session"] });
+          toast({
+            title: "Sync successful",
+            description: "Your clipboard has been synced.",
+          });
         }
+      } catch (error) {
+        throw error;
       } finally {
         setSyncing(false);
       }
     },
+    onError: (error) => {
+      toast({
+        title: "Sync failed",
+        description: error instanceof Error ? error.message : "Failed to sync clipboard",
+        variant: "destructive",
+      });
+    }
   });
 
   const handleSync = () => {
@@ -102,7 +117,7 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <SyncStatus
                   syncing={syncing}
-                  lastSynced={entries[0]?.timestamp}
+                  lastSynced={sessionUser?.lastSynced ?? null}
                   error={syncMutation.error instanceof Error ? syncMutation.error.message : undefined}
                 />
                 <Button onClick={handleSync} disabled={syncing}>

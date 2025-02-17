@@ -21,10 +21,11 @@ export async function readFromClipboard() {
 
 export async function saveClipboardEntry(content: string, userId: string) {
   try {
-    await apiRequest("POST", "/api/clipboard", { content, userId });
-    return true;
+    const response = await apiRequest("POST", "/api/clipboard", { content, userId });
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to save clipboard entry:", error);
-    return false;
+    throw error; // Re-throw to handle in the mutation
   }
 }

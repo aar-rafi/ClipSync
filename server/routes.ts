@@ -96,6 +96,18 @@ export async function registerRoutes(app: Express) {
     try {
       const entryData = insertClipboardEntrySchema.parse(req.body);
       const entry = await storage.createClipboardEntry(entryData);
+      // Update user's lastSynced timestamp
+      await storage.updateUserLastSynced(entryData.userId);
+      // Update session with the new lastSynced timestamp
+      if (req.session.user) {
+        req.session.user = await storage.getUser(req.session.user.id) || req.session.user;
+        await new Promise<void>((resolve, reject) => {
+          req.session.save((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      }
       res.json(entry);
     } catch (error) {
       res.status(400).json({ error: "Invalid clipboard data" });
@@ -111,6 +123,16 @@ export async function registerRoutes(app: Express) {
   app.post("/api/sync/:userId", async (req, res) => {
     const { userId } = req.params;
     await storage.updateUserLastSynced(userId);
+    // Update session with the new lastSynced timestamp
+    if (req.session.user) {
+      req.session.user = await storage.getUser(userId) || req.session.user;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
     res.json({ success: true });
   });
 
