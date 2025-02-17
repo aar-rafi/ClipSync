@@ -3,6 +3,13 @@ import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertUserSchema, insertClipboardEntrySchema } from "@shared/schema";
+import type { User } from "@shared/schema";
+
+declare module "express-session" {
+  interface SessionData {
+    user: User;
+  }
+}
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -73,6 +80,12 @@ export async function registerRoutes(app: Express) {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
       req.session.user = user;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
       res.json(user);
     } catch (error) {
       res.status(400).json({ error: "Invalid user data" });

@@ -9,6 +9,7 @@ import { authenticateWithGoogle } from "@/lib/google-drive";
 import { readFromClipboard, saveClipboardEntry } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import type { ClipboardEntry, User } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
 
 declare global {
   interface Window {
@@ -23,17 +24,20 @@ export default function Home() {
   const { toast } = useToast();
 
   // Check for existing session
-  const { data: sessionUser } = useQuery<User>({
+  const { data: sessionUser, error: sessionError } = useQuery<User>({
     queryKey: ["/api/auth/session"],
-    onSuccess: (user) => {
-      if (user) {
-        setUserId(user.id);
-      }
-    }
+    retry: false
   });
 
+  // Set userId when session is available
+  useEffect(() => {
+    if (sessionUser?.id) {
+      setUserId(sessionUser.id);
+    }
+  }, [sessionUser]);
+
   const { data: entries = [], refetch: refetchEntries } = useQuery<ClipboardEntry[]>({
-    queryKey: userId ? ["/api/clipboard/" + userId] : undefined,
+    queryKey: ["/api/clipboard", userId],
     enabled: !!userId,
   });
 
@@ -61,6 +65,7 @@ export default function Home() {
     const user = await authenticateWithGoogle();
     if (user) {
       setUserId(user.id);
+      queryClient.setQueryData(["/api/auth/session"], user);
       toast({
         title: "Logged in successfully",
         description: "You can now sync your clipboard across devices.",
