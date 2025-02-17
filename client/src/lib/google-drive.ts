@@ -41,12 +41,14 @@ export async function authenticateWithGoogle(): Promise<GoogleUser | null> {
       headers: { Authorization: `Bearer ${(response as any).access_token}` },
     }).then(r => r.json());
 
+    // Format user data to match our schema
     const user: GoogleUser = {
       id: userInfo.sub,
       email: userInfo.email,
       name: userInfo.name,
     };
 
+    // Send the properly formatted user data to our backend
     await apiRequest("POST", "/api/auth/google", user);
     return user;
   } catch (error) {

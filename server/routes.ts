@@ -36,7 +36,7 @@ export async function registerRoutes(app: Express) {
         if (data.type === 'register') {
           userId = data.userId;
           deviceId = data.deviceId || Date.now().toString(); // Generate device ID if not provided
-          connectedClients.push({ ws, userId: data.userId, deviceId });
+          connectedClients.push({ ws, userId, deviceId });
           console.log(`Client registered with userId: ${userId}, deviceId: ${deviceId}`);
         } else if (data.type === 'preview') {
           // Broadcast preview to all other devices of the same user
@@ -96,6 +96,7 @@ export async function registerRoutes(app: Express) {
       });
       res.json(user);
     } catch (error) {
+      console.error('Google auth error:', error);
       res.status(400).json({ error: "Invalid user data" });
     }
   });

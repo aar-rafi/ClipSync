@@ -24,6 +24,10 @@ export const users = pgTable("users", {
   lastSynced: timestamp("last_synced"),
 });
 
-export const insertUserSchema = createInsertSchema(users);
+// Modify the user schema to match Google auth data structure
+export const insertUserSchema = createInsertSchema(users).omit({
+  lastSynced: true
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
