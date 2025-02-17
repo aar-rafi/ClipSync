@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { insertUserSchema, insertClipboardEntrySchema } from "@shared/schema";
 import type { User } from "@shared/schema";
+import { ZodError } from "zod";
 
 declare module "express-session" {
   interface SessionData {
@@ -41,9 +42,9 @@ export async function registerRoutes(app: Express) {
         } else if (data.type === 'preview') {
           // Broadcast preview to all other devices of the same user
           connectedClients
-            .filter(client => 
-              client.userId === userId && 
-              client.deviceId !== deviceId && 
+            .filter(client =>
+              client.userId === userId &&
+              client.deviceId !== deviceId &&
               client.ws.readyState === WebSocket.OPEN
             )
             .forEach(client => {
@@ -62,8 +63,8 @@ export async function registerRoutes(app: Express) {
     ws.on('close', () => {
       if (userId && deviceId) {
         const index = connectedClients.findIndex(
-          client => client.ws === ws && 
-                    client.userId === userId && 
+          client => client.ws === ws &&
+                    client.userId === userId &&
                     client.deviceId === deviceId
         );
         if (index !== -1) {
@@ -85,19 +86,57 @@ export async function registerRoutes(app: Express) {
 
   app.post("/api/auth/google", async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
+      console.log('Received Google auth data:', req.body); // Debug log
+
+      // Parse and validate the incoming data
+      const validateResult = insertUserSchema.safeParse(req.body);
+
+      if (!validateResult.success) {
+        console.error('Validation errors:', validateResult.error);
+        return res.status(400).json({
+          error: "Invalid user data",
+          details: validateResult.error.errors
+        });
+      }
+
+      const userData = validateResult.data;
+      console.log('Validated user data:', userData); // Debug log
+
+      // First try to get existing user
+      let user = await storage.getUser(userData.id);
+      console.log('Existing user:', user); // Debug log
+
+      if (!user) {
+        // Only create a new user if they don't exist
+        user = await storage.createUser(userData);
+        console.log('Created new user:', user); // Debug log
+      }
+
+      // Set or update the session
       req.session.user = user;
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
-          if (err) reject(err);
-          else resolve();
+          if (err) {
+            console.error('Session save error:', err);
+            reject(err);
+          } else resolve();
         });
       });
+
       res.json(user);
     } catch (error) {
       console.error('Google auth error:', error);
-      res.status(400).json({ error: "Invalid user data" });
+      if (error instanceof ZodError) {
+        res.status(400).json({
+          error: "Invalid user data",
+          details: error.errors
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Authentication failed",
+          message: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
     }
   });
 

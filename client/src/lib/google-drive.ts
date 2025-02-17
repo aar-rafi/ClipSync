@@ -41,19 +41,30 @@ export async function authenticateWithGoogle(): Promise<GoogleUser | null> {
       headers: { Authorization: `Bearer ${(response as any).access_token}` },
     }).then(r => r.json());
 
+    console.log('Raw Google userInfo:', userInfo); // Debug log
+
     // Format user data to match our schema
     const user: GoogleUser = {
-      id: userInfo.sub,
+      id: userInfo.sub, // Google's unique identifier
       email: userInfo.email,
-      name: userInfo.name,
+      name: userInfo.given_name // Changed to given_name as that's what Google provides
     };
 
+    console.log('Formatted user data:', user); // Debug log
+
     // Send the properly formatted user data to our backend
-    await apiRequest("POST", "/api/auth/google", user);
+    const result = await apiRequest("POST", "/api/auth/google", user);
+    const userData = await result.json();
+    console.log('Backend response:', userData); // Debug log
+
+    if (userData.error) {
+      throw new Error(`Authentication failed: ${JSON.stringify(userData.error)}`);
+    }
+
     return user;
   } catch (error) {
     console.error("Google authentication error:", error);
-    return null;
+    throw error;
   }
 }
 
