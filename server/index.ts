@@ -3,24 +3,51 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
+import cors from "cors";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Session middleware configuration
+// CORS configuration for cross-device support
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
+// Session middleware configuration with improved settings
 app.use(session({
   secret: 'clipboard-sync-secret',
   resave: false,
   saveUninitialized: false,
   store: storage.sessionStore,
+  name: 'clipboard.sid', // Custom cookie name
   cookie: {
     secure: process.env.NODE_ENV === "production",
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/'
   }
 }));
+
+// Add session regeneration periodically
+app.use((req, res, next) => {
+  if (req.session && req.session.user) {
+    // Regenerate session every hour to prevent session fixation
+    const hour = 60 * 60 * 1000;
+    if (req.session.cookie.maxAge && Date.now() - req.session.cookie.maxAge > hour) {
+      req.session.regenerate((err) => {
+        if (err) next(err);
+        next();
+      });
+    } else {
+      next();
+    }
+  } else {
+    next();
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

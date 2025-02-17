@@ -14,6 +14,7 @@ declare module "express-session" {
 interface ConnectedClient {
   ws: WebSocket;
   userId: string;
+  deviceId: string;
 }
 
 const connectedClients: ConnectedClient[] = [];
@@ -26,6 +27,7 @@ export async function registerRoutes(app: Express) {
 
   wss.on('connection', (ws) => {
     let userId: string | undefined;
+    let deviceId: string | undefined;
 
     ws.on('message', (message) => {
       try {
@@ -33,19 +35,23 @@ export async function registerRoutes(app: Express) {
 
         if (data.type === 'register') {
           userId = data.userId;
-          connectedClients.push({ ws, userId: data.userId });
-          console.log(`Client registered with userId: ${userId}`);
+          deviceId = data.deviceId || Date.now().toString(); // Generate device ID if not provided
+          connectedClients.push({ ws, userId: data.userId, deviceId });
+          console.log(`Client registered with userId: ${userId}, deviceId: ${deviceId}`);
         } else if (data.type === 'preview') {
-          // Broadcast preview to all other clients of the same user
+          // Broadcast preview to all other devices of the same user
           connectedClients
-            .filter(client => client.userId === userId && client.ws !== ws)
+            .filter(client => 
+              client.userId === userId && 
+              client.deviceId !== deviceId && 
+              client.ws.readyState === WebSocket.OPEN
+            )
             .forEach(client => {
-              if (client.ws.readyState === WebSocket.OPEN) {
-                client.ws.send(JSON.stringify({
-                  type: 'preview',
-                  content: data.content
-                }));
-              }
+              client.ws.send(JSON.stringify({
+                type: 'preview',
+                content: data.content,
+                sourceDevice: deviceId
+              }));
             });
         }
       } catch (error) {
@@ -54,13 +60,15 @@ export async function registerRoutes(app: Express) {
     });
 
     ws.on('close', () => {
-      if (userId) {
+      if (userId && deviceId) {
         const index = connectedClients.findIndex(
-          client => client.ws === ws && client.userId === userId
+          client => client.ws === ws && 
+                    client.userId === userId && 
+                    client.deviceId === deviceId
         );
         if (index !== -1) {
           connectedClients.splice(index, 1);
-          console.log(`Client disconnected: ${userId}`);
+          console.log(`Client disconnected: ${userId} (device: ${deviceId})`);
         }
       }
     });
