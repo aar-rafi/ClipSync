@@ -1,4 +1,8 @@
 import { type User, type InsertUser, type ClipboardEntry, type InsertClipboardEntry } from "@shared/schema";
+import session from "express-session";
+import createMemoryStore from "memorystore";
+
+const MemoryStore = createMemoryStore(session);
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -6,17 +10,22 @@ export interface IStorage {
   updateUserLastSynced(id: string): Promise<void>;
   getClipboardEntries(userId: string): Promise<ClipboardEntry[]>;
   createClipboardEntry(entry: InsertClipboardEntry): Promise<ClipboardEntry>;
+  sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private clipboardEntries: Map<number, ClipboardEntry>;
   private currentEntryId: number;
+  public sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
     this.clipboardEntries = new Map();
     this.currentEntryId = 1;
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
   }
 
   async getUser(id: string): Promise<User | undefined> {

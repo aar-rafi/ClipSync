@@ -59,10 +59,20 @@ export async function registerRoutes(app: Express) {
     });
   });
 
+  app.get("/api/auth/session", (req, res) => {
+    const user = req.session.user;
+    if (user) {
+      res.json(user);
+    } else {
+      res.status(401).json({ message: "Not authenticated" });
+    }
+  });
+
   app.post("/api/auth/google", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
+      req.session.user = user;
       res.json(user);
     } catch (error) {
       res.status(400).json({ error: "Invalid user data" });

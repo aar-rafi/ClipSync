@@ -8,7 +8,7 @@ import { ClipboardPreview } from "@/components/clipboard-preview";
 import { authenticateWithGoogle } from "@/lib/google-drive";
 import { readFromClipboard, saveClipboardEntry } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
-import type { ClipboardEntry } from "@shared/schema";
+import type { ClipboardEntry, User } from "@shared/schema";
 
 declare global {
   interface Window {
@@ -21,6 +21,16 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
+
+  // Check for existing session
+  const { data: sessionUser } = useQuery<User>({
+    queryKey: ["/api/auth/session"],
+    onSuccess: (user) => {
+      if (user) {
+        setUserId(user.id);
+      }
+    }
+  });
 
   const { data: entries = [], refetch: refetchEntries } = useQuery<ClipboardEntry[]>({
     queryKey: userId ? ["/api/clipboard/" + userId] : undefined,
